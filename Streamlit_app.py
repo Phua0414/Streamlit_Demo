@@ -47,7 +47,7 @@ def preprocess_data(df):
     df_scaled = pd.DataFrame(scaler.fit_transform(df_numeric), columns=df_numeric.columns)
     return df_scaled
 
-def perform_clustering(df, algorithm, k=4, eps=0.5, min_samples=10, damping=0.9, preference=-50, n_components=2):
+def perform_clustering(df, algorithm, k=None, eps=None, min_samples=None, damping=None, preference=None, n_components=None):
     pca = PCA(n_components=n_components)
     df_pca = pca.fit_transform(df)
     

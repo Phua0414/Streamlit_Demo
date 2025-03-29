@@ -123,7 +123,7 @@ def main():
         algorithm = st.selectbox("Select Clustering Algorithm", ["K-Means", "DBSCAN", "Mean Shift", "Gaussian Mixture", "Agglomerative Clustering", "OPTICS", "HDBSCAN", "Affinity Propagation", "BIRCH", "Spectral Clustering"])
         
         k = st.slider("Select Number of Clusters", 2, 10, 4) if algorithm in ["K-Means", "Gaussian Mixture", "Agglomerative Clustering", "BIRCH", "Spectral Clustering"] else None
-        eps = st.slider("Select Epsilon (eps) Value", 0.1, 5.0, 0.5) if algorithm == "DBSCAN" else None
+        eps = st.slider("Select Epsilon (eps) Value", 0.1, 5.0, 0.5, step=0.1) if algorithm == "DBSCAN" else None
         min_samples = st.slider("Select Min Samples", 1, 20, 10) if algorithm in ["DBSCAN", "OPTICS", "HDBSCAN"] else None
         damping = st.slider("Select Damping Value", 0.5, 1.0, 0.9) if algorithm == "Affinity Propagation" else None
         preference = st.slider("Select Preference Value", -100, 100, -50) if algorithm == "Affinity Propagation" else None

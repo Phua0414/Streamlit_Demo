@@ -52,7 +52,7 @@ def perform_clustering(df, algorithm, k=None, eps=None, min_samples=None, dampin
     df_pca = pca.fit_transform(df)
     cluster_centers = None
     
-  if algorithm == "K-Means":
+    if algorithm == "K-Means":
         model = KMeans(n_clusters=k, random_state=42, n_init=10)
         labels = model.fit_predict(df_pca)
         cluster_centers = model.cluster_centers_

@@ -52,39 +52,45 @@ def perform_clustering(df, algorithm, k=None, eps=None, min_samples=None, dampin
     df_pca = pca.fit_transform(df)
     cluster_centers = None
     
-    if algorithm == "K-Means":
+  if algorithm == "K-Means":
         model = KMeans(n_clusters=k, random_state=42, n_init=10)
-        model.fit(df_pca)
+        labels = model.fit_predict(df_pca)
         cluster_centers = model.cluster_centers_
     elif algorithm == "DBSCAN":
         model = DBSCAN(eps=eps, min_samples=min_samples)
+        labels = model.fit_predict(df_pca)
     elif algorithm == "Mean Shift":
         bandwidth = estimate_bandwidth(df_pca, quantile=0.2)
         model = MeanShift(bandwidth=bandwidth)
-        model.fit(df_pca)
+        labels = model.fit_predict(df_pca)
         cluster_centers = model.cluster_centers_
     elif algorithm == "Gaussian Mixture":
         model = GaussianMixture(n_components=k, random_state=42)
         model.fit(df_pca)
+        labels = model.predict(df_pca)
         cluster_centers = model.means_
     elif algorithm == "Agglomerative Clustering":
         model = AgglomerativeClustering(n_clusters=k)
+        labels = model.fit_predict(df_pca)
     elif algorithm == "OPTICS":
         model = OPTICS(min_samples=min_samples)
+        labels = model.fit_predict(df_pca)
     elif algorithm == "HDBSCAN":
         model = hdbscan.HDBSCAN(min_cluster_size=min_samples)
+        labels = model.fit_predict(df_pca)
     elif algorithm == "Affinity Propagation":
         model = AffinityPropagation(damping=damping, preference=preference)
+        labels = model.fit_predict(df_pca)
     elif algorithm == "BIRCH":
         model = Birch(n_clusters=k)
+        labels = model.fit_predict(df_pca)
     elif algorithm == "Spectral Clustering":
         model = SpectralClustering(n_clusters=k, random_state=42, affinity='nearest_neighbors')
+        labels = model.fit_predict(df_pca)
     else:
         return None, None, None, None, None
 
     # Calculate Silhouette Score and Davies-Bouldin Index
-    labels = model.fit_predict(df_pca)
-    
     if len(set(labels)) > 1:
         silhouette = silhouette_score(df_pca, labels)
         db_index = davies_bouldin_score(df_pca, labels)

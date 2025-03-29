@@ -61,8 +61,12 @@ def perform_clustering(df, algorithm, k=None, eps=None, min_samples=None, dampin
     elif algorithm == "Mean Shift":
         bandwidth = estimate_bandwidth(df_pca, quantile=0.2)
         model = MeanShift(bandwidth=bandwidth)
+        model.fit(df_pca)
+        cluster_centers = model.cluster_centers_
     elif algorithm == "Gaussian Mixture":
         model = GaussianMixture(n_components=k, random_state=42)
+        model.fit(df_pca)
+        cluster_centers = model.means_
     elif algorithm == "Agglomerative Clustering":
         model = AgglomerativeClustering(n_clusters=k)
     elif algorithm == "OPTICS":
@@ -77,7 +81,8 @@ def perform_clustering(df, algorithm, k=None, eps=None, min_samples=None, dampin
         model = SpectralClustering(n_clusters=k, random_state=42, affinity='nearest_neighbors')
     else:
         return None, None, None, None, None
-    
+
+    # Calculate Silhouette Score and Davies-Bouldin Index
     labels = model.fit_predict(df_pca)
     
     if len(set(labels)) > 1:

@@ -21,6 +21,7 @@ def convert_less_than(value):
     return value
 
 def preprocess_data(df):
+    df = df.drop_duplicates()
     df = df.drop(columns=['Sample No', 'Dates'], errors='ignore')
     categorical_cols = df.select_dtypes(include=['object', 'category']).columns
     encoder = OneHotEncoder(drop='first', sparse_output=False)
@@ -31,9 +32,18 @@ def preprocess_data(df):
     df['Depth'] = df['Depth'].map(depth_order)
     numeric_cols = df.select_dtypes(include=['object']).columns
     for col in numeric_cols:
+        non_numeric_values = df[~df[col].str.replace('.', '', 1).str.isnumeric()][col].unique()
+        if len(non_numeric_values) > 0:
+            print(f"Non-numeric values in '{col}': {non_numeric_values}")
         df[col] = df[col].apply(convert_less_than)
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
     df_numeric = df.select_dtypes(include=[np.number]).copy()
+    skew_values_before = df_numeric.apply(skew)
+    high_skew_cols = skew_values_before[skew_values_before > 1].index
+    df_numeric[high_skew_cols] = np.log1p(df_numeric[high_skew_cols])
+    skew_values_after = df_numeric.apply(skew)
+    print("📊 Skewness before transformation:\n", skew_values_before)
+    print("\n📉 Skewness after transformation:\n", skew_values_after)
     scaler = MinMaxScaler()
     df_scaled = pd.DataFrame(scaler.fit_transform(df_numeric), columns=df_numeric.columns)
     return df_scaled
@@ -69,6 +79,15 @@ def plot_clusters(df_pca, labels, title):
     plt.ylabel('Second Component')
     st.pyplot(plt)
 
+def plot_histograms(df_scaled):
+    fig, axes = plt.subplots(nrows=12, ncols=3, figsize=(18, 40))
+    axes = axes.flatten()
+    for i, col in enumerate(df_scaled.columns[:len(axes)]):
+        axes[i].hist(df_scaled[col], bins=30, edgecolor="k")
+        axes[i].set_title(f"Histogram of {col}")
+    plt.tight_layout()
+    st.pyplot(fig)
+
 def main():
     st.title("Machine Learning Clustering App")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
@@ -79,6 +98,7 @@ def main():
         df_scaled = preprocess_data(df)
         st.write("### Processed Data Preview")
         st.write(df_scaled.head())
+        plot_histograms(df_scaled)
         algorithm = st.selectbox("Select Clustering Algorithm", ["K-Means", "DBSCAN", "Mean Shift", "Gaussian Mixture"])
         k = st.slider("Select Number of Clusters (for K-Means & GMM)", 2, 10, 4) if algorithm in ["K-Means", "Gaussian Mixture"] else None
         eps = st.slider("Select Epsilon (eps) Value", 0.1, 5.0, 0.5) if algorithm == "DBSCAN" else None

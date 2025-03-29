@@ -22,8 +22,10 @@ def convert_less_than(value):
     return value
 
 def preprocess_data(df):
+    #Remove the Sample No and Dates columns
     df = df.drop(columns=['Sample No', 'Dates'], errors='ignore')
-    
+
+    #Encoded the categorical columns
     categorical_cols = df.select_dtypes(include=['object', 'category']).columns
     encoder = OneHotEncoder(drop='first', sparse_output=False)
     encoded_df = pd.DataFrame(encoder.fit_transform(df[['Water Control Zone']]), columns=encoder.get_feature_names_out(['Water Control Zone']))
@@ -31,7 +33,8 @@ def preprocess_data(df):
     df['Station'] = df['Station'].map(df['Station'].value_counts(normalize=True))
     depth_order = {'Surface Water': 0, 'Middle Water': 1, 'Bottom Water': 2}
     df['Depth'] = df['Depth'].map(depth_order)
-    
+
+    #Transformation : Log and Min-Max Scaler
     numeric_cols = df.select_dtypes(include=['object']).columns
     for col in numeric_cols:
         df[col] = df[col].apply(convert_less_than)
@@ -109,7 +112,8 @@ def main():
         df_scaled = preprocess_data(df)
         st.write("### Processed Data Preview")
         st.write(df_scaled.head())
-        
+
+        st.write("## Clustering Algorithm Selection")
         n_components = st.slider("Select Number of PCA Components", 2, 5, 2)
         algorithm = st.selectbox("Select Clustering Algorithm", ["K-Means", "DBSCAN", "Mean Shift", "Gaussian Mixture", "Agglomerative Clustering", "OPTICS", "HDBSCAN", "Affinity Propagation", "BIRCH", "Spectral Clustering"])
         

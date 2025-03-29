@@ -50,9 +50,12 @@ def preprocess_data(df):
 def perform_clustering(df, algorithm, k=None, eps=None, min_samples=None, damping=None, preference=None, n_components=None):
     pca = PCA(n_components=n_components)
     df_pca = pca.fit_transform(df)
+    cluster_centers = None
     
     if algorithm == "K-Means":
         model = KMeans(n_clusters=k, random_state=42, n_init=10)
+        model.fit(df_pca)
+        cluster_centers = model.cluster_centers
     elif algorithm == "DBSCAN":
         model = DBSCAN(eps=eps, min_samples=min_samples)
     elif algorithm == "Mean Shift":
@@ -73,7 +76,7 @@ def perform_clustering(df, algorithm, k=None, eps=None, min_samples=None, dampin
     elif algorithm == "Spectral Clustering":
         model = SpectralClustering(n_clusters=k, random_state=42, affinity='nearest_neighbors')
     else:
-        return None, None, None, None
+        return None, None, None, None, None
     
     labels = model.fit_predict(df_pca)
     
@@ -83,9 +86,9 @@ def perform_clustering(df, algorithm, k=None, eps=None, min_samples=None, dampin
     else:
         silhouette, db_index = -1, -1
     
-    return df_pca, labels, silhouette, db_index
+    return df_pca, labels, silhouette, db_index, cluster_centers
 
-def plot_clusters(df_pca, labels, title):
+def plot_clusters(df_pca, labels, title, cluster_centers=None):
     plt.figure(figsize=(10, 6))
     scatter = plt.scatter(df_pca[:, 0], df_pca[:, 1], c=labels, cmap='viridis', edgecolor='k')
     if cluster_centers is not None:
@@ -120,12 +123,12 @@ def main():
         preference = st.slider("Select Preference Value", -100, 100, -50) if algorithm == "Affinity Propagation" else None
         
         if st.button("Run Clustering"):
-            df_pca, labels, silhouette, db_index = perform_clustering(df_scaled, algorithm, k, eps, min_samples, damping, preference, n_components)
+            df_pca, labels, silhouette, db_index, cluster_centers = perform_clustering(df_scaled, algorithm, k, eps, min_samples, damping, preference, n_components)
             
             st.write(f"### {algorithm} Clustering Results")
             st.write(f"Silhouette Score: {silhouette:.6f}")
             st.write(f"Davies-Bouldin Index: {db_index:.6f}")
-            plot_clusters(df_pca, labels, f"{algorithm} Clustering")
+            plot_clusters(df_pca, labels, f"{algorithm} Clustering", cluster_centers)
 
 if __name__ == "__main__":
     main()

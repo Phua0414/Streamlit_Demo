@@ -34,6 +34,9 @@ def preprocess_data(df):
         df[col] = df[col].apply(convert_less_than)
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
     df_numeric = df.select_dtypes(include=[np.number]).copy()
+    skew_values_before = df_numeric.apply(skew)
+    high_skew_cols = skew_values_before[skew_values_before > 1].index
+    df_numeric[high_skew_cols] = np.log1p(df_numeric[high_skew_cols])
     scaler = MinMaxScaler()
     df_scaled = pd.DataFrame(scaler.fit_transform(df_numeric), columns=df_numeric.columns)
     return df_scaled
@@ -51,26 +54,25 @@ def perform_clustering(df, algorithm, k=4, eps=0.5, min_samples=10):
     elif algorithm == "Gaussian Mixture":
         model = GaussianMixture(n_components=k, random_state=42)
     else:
-        return None, None, None, None, None
+        return None, None
     labels = model.fit_predict(df_pca)
-    centroids = model.cluster_centers_ if hasattr(model, 'cluster_centers_') else None
     if len(set(labels)) > 1:
         silhouette = silhouette_score(df_pca, labels)
         db_index = davies_bouldin_score(df_pca, labels)
     else:
         silhouette, db_index = -1, -1
-    return df_pca, labels, silhouette, db_index, centroids
+    return df_pca, labels, silhouette, db_index, model
 
-def plot_clusters(df_pca, labels, centroids, title):
+def plot_clusters(df_pca, labels, title, model=None):
     plt.figure(figsize=(10, 6))
     scatter = plt.scatter(df_pca[:, 0], df_pca[:, 1], c=labels, cmap='viridis', edgecolor='k')
-    if centroids is not None:
-        plt.scatter(centroids[:, 0], centroids[:, 1], s=200, c='red', marker='X', label='Centroids')
     plt.title(title)
     plt.colorbar(scatter, label='Cluster')
     plt.xlabel('First Component')
     plt.ylabel('Second Component')
-    plt.legend()
+    if isinstance(model, KMeans):
+        plt.scatter(model.cluster_centers_[:, 0], model.cluster_centers_[:, 1], s=200, c='red', marker='X', label='Centroids')
+        plt.legend()
     st.pyplot(plt)
 
 def main():
@@ -88,11 +90,11 @@ def main():
         eps = st.slider("Select Epsilon (eps) Value", 0.1, 5.0, 0.5) if algorithm == "DBSCAN" else None
         min_samples = st.slider("Select Min Samples", 1, 20, 10) if algorithm == "DBSCAN" else None
         if st.button("Run Clustering"):
-            df_pca, labels, silhouette, db_index, centroids = perform_clustering(df_scaled, algorithm, k, eps, min_samples)
+            df_pca, labels, silhouette, db_index, model = perform_clustering(df_scaled, algorithm, k, eps, min_samples)
             st.write(f"### {algorithm} Clustering Results")
             st.write(f"Silhouette Score: {silhouette:.6f}")
             st.write(f"Davies-Bouldin Index: {db_index:.6f}")
-            plot_clusters(df_pca, labels, centroids, f"{algorithm} Clustering")
+            plot_clusters(df_pca, labels, f"{algorithm} Clustering", model)
 
 if __name__ == "__main__":
     main()

@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import seaborn as sns
-import re
 import matplotlib.pyplot as plt
-import os
+import re
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
 from sklearn.cluster import KMeans, DBSCAN, MeanShift, estimate_bandwidth
@@ -13,65 +12,83 @@ from sklearn.metrics import silhouette_score, davies_bouldin_score
 from scipy.stats import skew
 import umap
 
-# Streamlit App Title
-st.title("Marine Water Quality Data Analysis")
+def convert_less_than(value):
+    if isinstance(value, str) and value.startswith("<"):
+        try:
+            return float(re.sub(r'[^\d.]', '', value)) / 2
+        except ValueError:
+            return None
+    return value
 
-# Upload CSV File
-uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
-
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-
-    st.subheader("Data Overview")
-    st.write(df.head())
-
-    st.subheader("Checking Missing Values")
-    st.write(df.isnull().sum())
-
-    st.subheader("Missing Values Heatmap")
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.heatmap(df.isnull(), cmap="coolwarm", cbar=False, ax=ax)
-    st.pyplot(fig)
-
-    # Data Cleaning: Drop Unnecessary Columns
+def preprocess_data(df):
     df = df.drop(columns=['Sample No', 'Dates'], errors='ignore')
-
-    # Encode Categorical Data
+    categorical_cols = df.select_dtypes(include=['object', 'category']).columns
     encoder = OneHotEncoder(drop='first', sparse_output=False)
-    encoded_df = pd.DataFrame(encoder.fit_transform(df[['Water Control Zone']]), 
-                              columns=encoder.get_feature_names_out(['Water Control Zone']))
+    encoded_df = pd.DataFrame(encoder.fit_transform(df[['Water Control Zone']]), columns=encoder.get_feature_names_out(['Water Control Zone']))
     df = df.drop(columns=['Water Control Zone']).join(encoded_df)
-
-    # Apply PCA for Dimensionality Reduction
-    st.subheader("PCA for Dimensionality Reduction")
+    df['Station'] = df['Station'].map(df['Station'].value_counts(normalize=True))
+    depth_order = {'Surface Water': 0, 'Middle Water': 1, 'Bottom Water': 2}
+    df['Depth'] = df['Depth'].map(depth_order)
+    numeric_cols = df.select_dtypes(include=['object']).columns
+    for col in numeric_cols:
+        df[col] = df[col].apply(convert_less_than)
+    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
+    df_numeric = df.select_dtypes(include=[np.number]).copy()
     scaler = MinMaxScaler()
-    df_scaled = pd.DataFrame(scaler.fit_transform(df.select_dtypes(include=[np.number])), columns=df.select_dtypes(include=[np.number]).columns)
+    df_scaled = pd.DataFrame(scaler.fit_transform(df_numeric), columns=df_numeric.columns)
+    return df_scaled
 
+def perform_clustering(df, algorithm, k=4, eps=0.5, min_samples=10):
     pca = PCA(n_components=2)
-    df_pca = pca.fit_transform(df_scaled)
+    df_pca = pca.fit_transform(df)
+    if algorithm == "K-Means":
+        model = KMeans(n_clusters=k, random_state=42, n_init=10)
+    elif algorithm == "DBSCAN":
+        model = DBSCAN(eps=eps, min_samples=min_samples)
+    elif algorithm == "Mean Shift":
+        bandwidth = estimate_bandwidth(df_pca, quantile=0.2)
+        model = MeanShift(bandwidth=bandwidth)
+    elif algorithm == "Gaussian Mixture":
+        model = GaussianMixture(n_components=k, random_state=42)
+    else:
+        return None, None
+    labels = model.fit_predict(df_pca)
+    if len(set(labels)) > 1:
+        silhouette = silhouette_score(df_pca, labels)
+        db_index = davies_bouldin_score(df_pca, labels)
+    else:
+        silhouette, db_index = -1, -1
+    return df_pca, labels, silhouette, db_index
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.scatter(df_pca[:, 0], df_pca[:, 1], alpha=0.6)
-    ax.set_xlabel("Principal Component 1")
-    ax.set_ylabel("Principal Component 2")
-    ax.set_title("PCA Result (2D Projection)")
-    st.pyplot(fig)
+def plot_clusters(df_pca, labels, title):
+    plt.figure(figsize=(10, 6))
+    scatter = plt.scatter(df_pca[:, 0], df_pca[:, 1], c=labels, cmap='viridis', edgecolor='k')
+    plt.title(title)
+    plt.colorbar(scatter, label='Cluster')
+    plt.xlabel('First Component')
+    plt.ylabel('Second Component')
+    st.pyplot(plt)
 
-    # K-Means Clustering
-    st.subheader("K-Means Clustering")
-    kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
-    labels = kmeans.fit_predict(df_pca)
-    
-    silhouette = silhouette_score(df_pca, labels)
-    db_index = davies_bouldin_score(df_pca, labels)
+def main():
+    st.title("Machine Learning Clustering App")
+    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+        st.write("### Raw Data Preview")
+        st.write(df.head())
+        df_scaled = preprocess_data(df)
+        st.write("### Processed Data Preview")
+        st.write(df_scaled.head())
+        algorithm = st.selectbox("Select Clustering Algorithm", ["K-Means", "DBSCAN", "Mean Shift", "Gaussian Mixture"])
+        k = st.slider("Select Number of Clusters (for K-Means & GMM)", 2, 10, 4) if algorithm in ["K-Means", "Gaussian Mixture"] else None
+        eps = st.slider("Select Epsilon (eps) Value", 0.1, 5.0, 0.5) if algorithm == "DBSCAN" else None
+        min_samples = st.slider("Select Min Samples", 1, 20, 10) if algorithm == "DBSCAN" else None
+        if st.button("Run Clustering"):
+            df_pca, labels, silhouette, db_index = perform_clustering(df_scaled, algorithm, k, eps, min_samples)
+            st.write(f"### {algorithm} Clustering Results")
+            st.write(f"Silhouette Score: {silhouette:.6f}")
+            st.write(f"Davies-Bouldin Index: {db_index:.6f}")
+            plot_clusters(df_pca, labels, f"{algorithm} Clustering")
 
-    st.write(f"Silhouette Score: {silhouette:.6f}")
-    st.write(f"Davies-Bouldin Index: {db_index:.6f}")
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    scatter = ax.scatter(df_pca[:, 0], df_pca[:, 1], c=labels, cmap='viridis')
-    ax.scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], s=200, c='red', marker='X', label='Centroids')
-    ax.set_title("K-Means Clustering")
-    ax.set_xlabel("First Component")
-    ax.set_ylabel("Second Component")
-    st.pyplot(fig)
+if __name__ == "__main__":
+    main()

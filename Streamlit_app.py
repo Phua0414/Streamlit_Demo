@@ -22,10 +22,8 @@ def convert_less_than(value):
     return value
 
 def preprocess_data(df):
-    #Remove the Sample No and Dates
     df = df.drop(columns=['Sample No', 'Dates'], errors='ignore')
     
-    #Encoded the categorical column
     categorical_cols = df.select_dtypes(include=['object', 'category']).columns
     encoder = OneHotEncoder(drop='first', sparse_output=False)
     encoded_df = pd.DataFrame(encoder.fit_transform(df[['Water Control Zone']]), columns=encoder.get_feature_names_out(['Water Control Zone']))
@@ -33,8 +31,7 @@ def preprocess_data(df):
     df['Station'] = df['Station'].map(df['Station'].value_counts(normalize=True))
     depth_order = {'Surface Water': 0, 'Middle Water': 1, 'Bottom Water': 2}
     df['Depth'] = df['Depth'].map(depth_order)
-
-    #Transformation : Log and MinMaxScaler
+    
     numeric_cols = df.select_dtypes(include=['object']).columns
     for col in numeric_cols:
         df[col] = df[col].apply(convert_less_than)
@@ -55,7 +52,7 @@ def perform_clustering(df, algorithm, k=None, eps=None, min_samples=None, dampin
     if algorithm == "K-Means":
         model = KMeans(n_clusters=k, random_state=42, n_init=10)
         model.fit(df_pca)
-        cluster_centers = model.cluster_centers
+        cluster_centers = model.cluster_centers_
     elif algorithm == "DBSCAN":
         model = DBSCAN(eps=eps, min_samples=min_samples)
     elif algorithm == "Mean Shift":
